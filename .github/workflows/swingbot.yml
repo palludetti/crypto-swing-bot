@@ -1,0 +1,93 @@
+name: SwingBot Paper Trader & Dashboard
+
+on:
+  schedule:
+    # Fechamento diário oficial (00:05 UTC = 21:05 BRT) + monitoramento a cada 20 min
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Ação manual (sync, pause, resume, sell_all, reset)"
+        required: false
+        default: "sync"
+        type: choice
+        options:
+          - sync
+          - pause
+          - resume
+          - sell_all
+          - reset
+      notify_menu:
+        description: "Enviar link do Dashboard no Telegram?"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "swingbot-paper-runner"
+  cancel-in-progress: false
+
+jobs:
+  run-swingbot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run SwingBot Cloud Cycle
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WEBAPP_PUBLIC_URL: ${{ vars.WEBAPP_PUBLIC_URL }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          ACTION="${{ inputs.action || 'sync' }}"
+          EXTRA_FLAG=""
+          if [ "${{ inputs.notify_menu }}" = "true" ]; then
+            EXTRA_FLAG="--notify-menu"
+          fi
+          python -X utf8 cloud_runner.py --action "$ACTION" $EXTRA_FLAG
+
+      - name: Commit and push updated state
+        run: |
+          git config user.name "swingbot-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add paper_state.json twa/status.json
+          if ! git diff --staged --quiet; then
+            git commit -m "chore(state): update paper trading state [skip ci]"
+            git pull --rebase origin "${{ github.ref_name }}" || true
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
+
+      - name: Setup GitHub Pages
+        id: pages
+        continue-on-error: true
+        uses: actions/configure-pages@v5
+
+      - name: Upload Dashboard artifact (twa/)
+        if: steps.pages.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "twa"
+
+      - name: Deploy Dashboard to GitHub Pages
+        if: steps.pages.outcome == 'success'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4

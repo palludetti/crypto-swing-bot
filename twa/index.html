@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>SwingBot Cripto - Paper Trading</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #070b14;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+    .brand-gradient {
+      background: linear-gradient(135deg, #10b981 0%, #06b6d4 55%, #3b82f6 100%);
+    }
+    .brand-text {
+      background: linear-gradient(135deg, #34d399 0%, #22d3ee 55%, #60a5fa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    .pulse-dot { animation: pulse-dot 2s infinite ease-in-out; }
+  </style>
+</head>
+<body class="min-h-screen pb-24 flex flex-col">
+
+  <!-- TOP BAR -->
+  <header class="sticky top-0 z-30 glass-card border-b border-slate-800/80 px-4 py-3">
+    <div class="max-w-md mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl brand-gradient flex items-center justify-center text-lg shadow-md shadow-cyan-500/20">
+          📈
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <h1 class="text-base font-black tracking-tight brand-text">SWINGBOT</h1>
+            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 pulse-dot"></span> PAPER
+            </span>
+            <span id="badge-paused" class="hidden px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+              PAUSADO
+            </span>
+          </div>
+          <p id="subtitle-info" class="text-[11px] text-slate-400">Donchian 30/15 • 1D • Simulação US$ 300</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5">
+        <button id="btn-pause-toggle" onclick="togglePause()" class="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700/70 text-slate-200 transition-all">
+          Pausar
+        </button>
+        <button onclick="forceRefresh()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700/70 active:scale-95 transition-all text-slate-300" title="Atualizar agora">
+          <svg id="refresh-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-md w-full mx-auto px-4 pt-4 space-y-4 flex-1">
+
+    <!-- TAB 1: CARTEIRA -->
+    <section id="tab-wallet" class="space-y-4">
+      <!-- Equity Hero Card -->
+      <div class="glass-card rounded-2xl p-4 relative overflow-hidden">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Patrimônio Virtual (Paper)</p>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="eq-usd" class="text-3xl font-black tracking-tight text-white">US$ 300,00</span>
+              <span id="ret-badge" class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">0,00%</span>
+            </div>
+            <p id="eq-brl" class="text-xs text-slate-400 mt-0.5">~ R$ 0,00 (USD/BRL --)</p>
+          </div>
+          <div class="text-right">
+            <p class="text-[11px] text-slate-400">PnL Líquido</p>
+            <p id="pnl-usd" class="text-sm font-bold text-slate-200 mt-0.5">US$ 0,00</p>
+            <p id="fees-usd" class="text-[10px] text-slate-500 mt-0.5">Taxas: US$ 0,00</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-800/80 text-center">
+          <div class="bg-slate-900/60 rounded-xl py-2 px-1">
+            <p class="text-[10px] text-slate-400">Caixa Livre</p>
+            <p id="cash-usd" class="text-xs font-bold text-emerald-300 mt-0.5">US$ 300,00</p>
+          </div>
+          <div class="bg-slate-900/60 rounded-xl py-2 px-1">
+            <p class="text-[10px] text-slate-400">Exposição</p>
+            <p id="exposure-pct" class="text-xs font-bold text-cyan-300 mt-0.5">0,0%</p>
+          </div>
+          <div class="bg-slate-900/60 rounded-xl py-2 px-1">
+            <p class="text-[10px] text-slate-400">Vagas Usadas</p>
+            <p id="slots-used" class="text-xs font-bold text-slate-200 mt-0.5">0 / 4</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Macro BTC Regime Card -->
+      <div class="glass-card rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-slate-300">🧭 Filtro Macro (Bitcoin vs SMA200)</span>
+          <span id="btc-regime-pill" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300">--</span>
+        </div>
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>BTC Atual: <strong id="btc-price" class="text-white">--</strong></span>
+          <span>SMA 200d: <strong id="btc-sma" class="text-slate-200">--</strong></span>
+          <span id="btc-dist" class="font-semibold">--</span>
+        </div>
+        <p id="btc-regime-desc" class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+          Carregando leitura do fechamento diário...
+        </p>
+      </div>
+
+      <!-- Equity Curve Card -->
+      <div class="glass-card rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-slate-300">📉 Curva de Patrimônio (Paper)</span>
+          <span id="last-candle-date" class="text-[10px] text-slate-500">Último candle: --</span>
+        </div>
+        <div id="equity-chart-container" class="h-24 w-full flex items-center justify-center text-xs text-slate-500">
+          Aguardando pontos diários...
+        </div>
+      </div>
+
+      <!-- Open Positions -->
+      <div class="space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Posições Abertas</h2>
+          <button id="btn-sell-all" onclick="confirmSell('ALL')" class="hidden text-[11px] font-semibold text-rose-400 hover:text-rose-300">
+            Encerrar Tudo
+          </button>
+        </div>
+        <div id="positions-list" class="space-y-2.5"></div>
+      </div>
+    </section>
+
+    <!-- TAB 2: RADAR 16 -->
+    <section id="tab-radar" class="hidden space-y-3">
+      <div class="glass-card rounded-2xl p-3.5">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-bold text-white">Radar dos 16 Pares (1D)</h2>
+            <p class="text-[11px] text-slate-400">Ordenado por proximidade do rompimento Donchian 30d</p>
+          </div>
+          <span id="radar-updated" class="text-[10px] text-slate-500">--</span>
+        </div>
+      </div>
+      <div id="radar-list" class="space-y-2"></div>
+    </section>
+
+    <!-- TAB 3: HISTÓRICO -->
+    <section id="tab-trades" class="hidden space-y-3">
+      <div class="glass-card rounded-2xl p-4 grid grid-cols-3 gap-2 text-center">
+        <div>
+          <p class="text-[10px] text-slate-400">Total Trades</p>
+          <p id="stat-trades" class="text-base font-black text-white mt-0.5">0</p>
+        </div>
+        <div>
+          <p class="text-[10px] text-slate-400">Taxa Acerto</p>
+          <p id="stat-winrate" class="text-base font-black text-emerald-400 mt-0.5">0,0%</p>
+        </div>
+        <div>
+          <p class="text-[10px] text-slate-400">Profit Factor</p>
+          <p id="stat-pf" class="text-base font-black text-cyan-400 mt-0.5">0,00</p>
+        </div>
+      </div>
+      <div id="trades-list" class="space-y-2"></div>
+    </section>
+
+    <!-- TAB 4: REGRAS & CONFIG -->
+    <section id="tab-rules" class="hidden space-y-3">
+      <div class="glass-card rounded-2xl p-4 space-y-2.5 text-xs text-slate-300 leading-relaxed">
+        <h2 class="text-sm font-bold text-white">📐 Parâmetros Validados (2021–2026)</h2>
+        <div class="space-y-1.5 text-[11px]">
+          <p>• <strong>Timeframe</strong>: Diário (<code>1D</code>) — avaliado no fechamento às 21h00 BRT.</p>
+          <p>• <strong>Gatilho de Compra</strong>: Fechamento acima da máxima de <strong>30 dias</strong> (Donchian High 30) + preço acima da EMA 50.</p>
+          <p>• <strong>Filtro de Tendência Própria</strong>: Só compra se o ativo estiver acima da sua <strong>SMA 200</strong>.</p>
+          <p>• <strong>Escudo Macro BTC</strong>: Só abre novas compras quando <code>BTC &gt; SMA 200</code>.</p>
+          <p>• <strong>Controle de Volatilidade</strong>: Recusa rompimentos muito esticados (Stop 3×ATR &gt; 18%).</p>
+          <p>• <strong>Gestão de Banca (Paper)</strong>: <strong>3%</strong> de risco até o Stop por trade, teto de 25% por ativo, máx. <strong>4 posições</strong> simultâneas.</p>
+          <p>• <strong>Saída</strong>: Stop Loss intradiário (<code>3×ATR</code>) ou fechamento diário abaixo da mínima de <strong>15 dias</strong>.</p>
+          <p>• <strong>Custos Simulados</strong>: Taxa de 0,10% + Slippage 0,05% por ponta.</p>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-2xl p-4 border-rose-500/20">
+        <h3 class="text-xs font-bold text-rose-300 mb-1">🔄 Reiniciar Simulação Paper</h3>
+        <p class="text-[11px] text-slate-400 mb-3">
+          Zera as posições simuladas e o histórico de trades, restaurando a banca virtual para US$ 300,00.
+        </p>
+        <button onclick="confirmReset()" class="w-full py-2.5 rounded-xl text-xs font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition-all">
+          Resetar Conta Paper (US$ 300)
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAVIGATION -->
+  <nav class="fixed bottom-0 left-0 right-0 z-40 glass-card border-t border-slate-800/90 px-2 py-2">
+    <div class="max-w-md mx-auto grid grid-cols-4 gap-1 text-center">
+      <button onclick="switchTab('wallet')" id="nav-wallet" class="nav-btn py-1.5 rounded-xl flex flex-col items-center gap-0.5 text-cyan-400 bg-cyan-500/10">
+        <span class="text-base">💼</span>
+        <span class="text-[10px] font-bold">Carteira</span>
+      </button>
+      <button onclick="switchTab('radar')" id="nav-radar" class="nav-btn py-1.5 rounded-xl flex flex-col items-center gap-0.5 text-slate-400">
+        <span class="text-base">🔭</span>
+        <span class="text-[10px] font-semibold">Radar 16</span>
+      </button>
+      <button onclick="switchTab('trades')" id="nav-trades" class="nav-btn py-1.5 rounded-xl flex flex-col items-center gap-0.5 text-slate-400">
+        <span class="text-base">📒</span>
+        <span class="text-[10px] font-semibold">Histórico</span>
+      </button>
+      <button onclick="switchTab('rules')" id="nav-rules" class="nav-btn py-1.5 rounded-xl flex flex-col items-center gap-0.5 text-slate-400">
+        <span class="text-base">📐</span>
+        <span class="text-[10px] font-semibold">Regras</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MODAL -->
+  <div id="modal-overlay" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-card rounded-2xl max-w-sm w-full p-5 space-y-4">
+      <h3 id="modal-title" class="text-sm font-bold text-white">Confirmar Ação</h3>
+      <p id="modal-body" class="text-xs text-slate-300 leading-relaxed"></p>
+      <div class="flex gap-2">
+        <button onclick="closeModal()" class="flex-1 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300">Cancelar</button>
+        <button id="modal-confirm-btn" class="flex-1 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (window.Telegram && window.Telegram.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+    }
+
+    let currentState = null;
+
+    function fmtUsd(v) {
+      return "US$ " + Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function fmtPx(v) {
+      const n = Number(v || 0);
+      if (n >= 100) return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (n >= 1) return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+      return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 5 });
+    }
+    function fmtPct(v) {
+      const n = Number(v || 0);
+      return (n >= 0 ? "+" : "") + n.toFixed(2).replace(".", ",") + "%";
+    }
+
+    function switchTab(tab) {
+      ["wallet", "radar", "trades", "rules"].forEach(t => {
+        document.getElementById("tab-" + t).classList.toggle("hidden", t !== tab);
+        const btn = document.getElementById("nav-" + t);
+        if (t === tab) {
+          btn.classList.add("text-cyan-400", "bg-cyan-500/10");
+          btn.classList.remove("text-slate-400");
+        } else {
+          btn.classList.remove("text-cyan-400", "bg-cyan-500/10");
+          btn.classList.add("text-slate-400");
+        }
+      });
+    }
+
+    function renderEquityChart(history) {
+      const box = document.getElementById("equity-chart-container");
+      if (!history || history.length < 2) {
+        box.textContent = "Aguardando fechamentos diários para desenhar a curva...";
+        return;
+      }
+      const vals = history.map(h => Number(h.equity_usd));
+      const minV = Math.min(...vals) * 0.995;
+      const maxV = Math.max(...vals) * 1.005;
+      const span = Math.max(maxV - minV, 1);
+      const W = 320, H = 80;
+      const pts = vals.map((v, i) => {
+        const x = (i / (vals.length - 1)) * W;
+        const y = H - ((v - minV) / span) * (H - 10) - 5;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(" ");
+      const color = vals[vals.length - 1] >= vals[0] ? "#34d399" : "#fb7185";
+      box.innerHTML = `
+        <svg viewBox="0 0 ${W} ${H}" class="w-full h-full overflow-visible">
+          <polyline fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${pts}" />
+        </svg>
+      `;
+    }
+
+    function render(data) {
+      currentState = data;
+      const s = data.summary;
+      const radar = data.radar || {};
+
+      document.getElementById("badge-paused").classList.toggle("hidden", !data.paused);
+      const pauseBtn = document.getElementById("btn-pause-toggle");
+      pauseBtn.textContent = data.paused ? "Retomar" : "Pausar";
+
+      document.getElementById("eq-usd").textContent = fmtUsd(s.total_equity_usd);
+      document.getElementById("eq-brl").textContent = `~ R$ ${Number(s.total_equity_brl).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (USD/BRL ${data.usdt_brl.toFixed(2)})`;
+
+      const retBadge = document.getElementById("ret-badge");
+      retBadge.textContent = fmtPct(s.total_return_pct);
+      retBadge.className = "text-xs font-bold px-2 py-0.5 rounded-full " +
+        (s.total_return_pct > 0 ? "bg-emerald-500/20 text-emerald-300" : s.total_return_pct < 0 ? "bg-rose-500/20 text-rose-300" : "bg-slate-800 text-slate-300");
+
+      const pnlEl = document.getElementById("pnl-usd");
+      pnlEl.textContent = (s.total_pnl_usd >= 0 ? "+" : "") + fmtUsd(s.total_pnl_usd);
+      pnlEl.className = "text-sm font-bold mt-0.5 " + (s.total_pnl_usd >= 0 ? "text-emerald-400" : "text-rose-400");
+
+      document.getElementById("fees-usd").textContent = "Taxas sim.: " + fmtUsd(s.total_fees_usd);
+      document.getElementById("cash-usd").textContent = fmtUsd(s.cash_usd);
+      document.getElementById("exposure-pct").textContent = s.exposure_pct.toFixed(1) + "%";
+      document.getElementById("slots-used").textContent = `${s.open_count} / ${s.max_positions}`;
+      document.getElementById("last-candle-date").textContent = "Candle: " + (s.last_daily_candle_date || "--");
+
+      // Macro BTC
+      const btcBull = Boolean(radar.btc_bull);
+      const pill = document.getElementById("btc-regime-pill");
+      pill.textContent = btcBull ? "🟢 ALTA (COMPRAS LIBERADAS)" : "🔴 DEFENSIVO (100% CAIXA)";
+      pill.className = "px-2 py-0.5 rounded-full text-[10px] font-bold " +
+        (btcBull ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-rose-500/20 text-rose-300 border border-rose-500/30");
+      document.getElementById("btc-price").textContent = fmtPx(radar.btc_price || 0);
+      document.getElementById("btc-sma").textContent = fmtPx(radar.btc_sma200 || 0);
+      const bdist = document.getElementById("btc-dist");
+      bdist.textContent = fmtPct(radar.btc_dist_sma200_pct || 0);
+      bdist.className = "font-semibold " + ((radar.btc_dist_sma200_pct || 0) >= 0 ? "text-emerald-400" : "text-rose-400");
+      document.getElementById("btc-regime-desc").textContent = btcBull
+        ? "Bitcoin acima da média móvel de 200 dias. O robô está autorizado a abrir posições em rompimentos válidos."
+        : "Bitcoin abaixo da média móvel de 200 dias. O escudo macro mantém o robô protegido em USDT contra bear markets.";
+
+      renderEquityChart(data.equity_history || []);
+
+      // Posições Abertas
+      const posList = document.getElementById("positions-list");
+      const sellAllBtn = document.getElementById("btn-sell-all");
+      if (!data.positions || data.positions.length === 0) {
+        sellAllBtn.classList.add("hidden");
+        posList.innerHTML = `
+          <div class="glass-card rounded-2xl p-5 text-center text-xs text-slate-400">
+            Nenhuma posição aberta no momento. Aguardando fechamento diário (21h BRT) com sinal válido.
+          </div>
+        `;
+      } else {
+        sellAllBtn.classList.remove("hidden");
+        posList.innerHTML = data.positions.map(p => {
+          const isUp = p.pnl_usd >= 0;
+          return `
+            <div class="glass-card rounded-2xl p-3.5 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-black text-white">${p.ticker}</span>
+                  <span class="text-[11px] text-slate-400 ml-1">/ USDT</span>
+                  <p class="text-[11px] text-slate-400">Entrada: ${fmtPx(p.entry_price)} → Atual: <strong class="text-white">${fmtPx(p.current_price)}</strong></p>
+                </div>
+                <div class="text-right">
+                  <p class="text-sm font-black ${isUp ? "text-emerald-400" : "text-rose-400"}">${isUp ? "+" : ""}${fmtUsd(p.pnl_usd)}</p>
+                  <p class="text-[11px] font-bold ${isUp ? "text-emerald-400" : "text-rose-400"}">${fmtPct(p.pnl_pct)}</p>
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-[10px] bg-slate-900/60 rounded-xl p-2 text-slate-300">
+                <div>Alocado: <strong>${fmtUsd(p.invested_usd)}</strong></div>
+                <div>Stop ATR: <strong class="text-rose-300">${fmtPx(p.stop_price)}</strong></div>
+                <div>Saída D15: <strong class="text-amber-300">${fmtPx(p.don_lo_exit)}</strong></div>
+              </div>
+              <button onclick="confirmSell('${p.symbol}')" class="w-full py-2 rounded-xl text-xs font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30">
+                Encerrar Posição (Paper)
+              </button>
+            </div>
+          `;
+        }).join("");
+      }
+
+      // Radar 16
+      const radarAssets = radar.assets || [];
+      document.getElementById("radar-updated").textContent = radar.candle_date || "";
+      document.getElementById("radar-list").innerHTML = radarAssets.map(a => {
+        let tagCls = "bg-slate-800 text-slate-400";
+        if (a.status === "ROMPENDO AGORA") tagCls = "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+        else if (a.status === "PERTO DE ROMPER") tagCls = "bg-amber-500/20 text-amber-300 border border-amber-500/30";
+        else if (a.status === "EM TENDÊNCIA") tagCls = "bg-cyan-500/20 text-cyan-300";
+        else if (a.status === "VOL ALTA") tagCls = "bg-purple-500/20 text-purple-300";
+        return `
+          <div class="glass-card rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-black text-white">${a.ticker}</span>
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${tagCls}">${a.status}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">
+                Atual: <strong class="text-slate-200">${fmtPx(a.price)}</strong> • Alvo 30d: ${fmtPx(a.don_hi_30)}
+              </p>
+            </div>
+            <div class="text-right">
+              <p class="text-xs font-bold ${a.dist_breakout_pct <= 0 ? "text-emerald-400" : "text-slate-200"}">
+                ${a.dist_breakout_pct <= 0 ? "ROMPEU" : `-${a.dist_breakout_pct.toFixed(1)}%`}
+              </p>
+              <p class="text-[10px] text-slate-500">SMA200: ${fmtPct(a.dist_sma200_pct)}</p>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      // Trades
+      document.getElementById("stat-trades").textContent = s.total_trades;
+      document.getElementById("stat-winrate").textContent = s.win_rate_pct.toFixed(1).replace(".", ",") + "%";
+      document.getElementById("stat-pf").textContent = s.profit_factor >= 99 ? "∞" : s.profit_factor.toFixed(2);
+      const tList = document.getElementById("trades-list");
+      if (!data.closed_trades || data.closed_trades.length === 0) {
+        tList.innerHTML = `<div class="glass-card rounded-2xl p-5 text-center text-xs text-slate-400">Nenhum trade encerrado ainda.</div>`;
+      } else {
+        tList.innerHTML = data.closed_trades.map(tr => {
+          const isUp = tr.net_pnl_usd >= 0;
+          return `
+            <div class="glass-card rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <p class="text-xs font-bold text-white">${tr.symbol.replace("USDT", "")} <span class="text-[10px] text-slate-400 font-normal">(${tr.exit_reason})</span></p>
+                <p class="text-[10px] text-slate-400 mt-0.5">${fmtPx(tr.entry_price)} → ${fmtPx(tr.exit_price)}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs font-black ${isUp ? "text-emerald-400" : "text-rose-400"}">${isUp ? "+" : ""}${fmtUsd(tr.net_pnl_usd)}</p>
+                <p class="text-[10px] ${isUp ? "text-emerald-400" : "text-rose-400"}">${fmtPct(tr.return_pct)}</p>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+    }
+
+    let isStaticCloud = false;
+
+    async function applyLiveBinanceOverlay(data) {
+      try {
+        const res = await fetch("https://data-api.binance.vision/api/v3/ticker/price");
+        if (!res.ok) return data;
+        const rows = await res.json();
+        const pxMap = {};
+        for (const r of rows) pxMap[r.symbol] = Number(r.price);
+
+        if (pxMap.USDTBRL) data.usdt_brl = pxMap.USDTBRL;
+        const s = data.summary;
+        let posVal = 0;
+        let unrealPnl = 0;
+
+        for (const p of (data.positions || [])) {
+          if (pxMap[p.symbol]) {
+            p.current_price = pxMap[p.symbol];
+            p.current_value_usd = Number((p.qty * p.current_price).toFixed(2));
+            p.pnl_usd = Number((p.current_value_usd - p.invested_usd).toFixed(2));
+            p.pnl_pct = Number(((p.pnl_usd / p.invested_usd) * 100).toFixed(2));
+            p.dist_stop_pct = Number((((p.current_price / p.stop_price) - 1) * 100).toFixed(2));
+          }
+          posVal += p.current_value_usd;
+          unrealPnl += p.pnl_usd;
+        }
+
+        s.positions_value_usd = Number(posVal.toFixed(2));
+        s.unrealized_pnl_usd = Number(unrealPnl.toFixed(2));
+        s.total_equity_usd = Number((s.cash_usd + posVal).toFixed(2));
+        s.total_equity_brl = Number((s.total_equity_usd * data.usdt_brl).toFixed(2));
+        s.total_pnl_usd = Number((s.total_equity_usd - s.initial_capital_usd).toFixed(2));
+        s.total_pnl_brl = Number((s.total_pnl_usd * data.usdt_brl).toFixed(2));
+        s.total_return_pct = Number(((s.total_pnl_usd / s.initial_capital_usd) * 100).toFixed(2));
+
+        const radar = data.radar || {};
+        if (pxMap.BTCUSDT && radar.btc_sma200) {
+          radar.btc_price = pxMap.BTCUSDT;
+          radar.btc_dist_sma200_pct = Number((((radar.btc_price / radar.btc_sma200) - 1) * 100).toFixed(2));
+        }
+        for (const a of (radar.assets || [])) {
+          if (pxMap[a.symbol]) {
+            a.price = pxMap[a.symbol];
+            if (a.don_hi_30 > 0) a.dist_breakout_pct = Number((((a.don_hi_30 / a.price) - 1) * 100).toFixed(2));
+            if (a.sma200 > 0) {
+              a.dist_sma200_pct = Number((((a.price / a.sma200) - 1) * 100).toFixed(2));
+              a.above_sma200 = a.price > a.sma200;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Overlay live Binance indisponível:", err);
+      }
+      return data;
+    }
+
+    async function loadStatus(forceLiveOverlay = false) {
+      try {
+        let res = await fetch("/api/status");
+        if (res.ok) {
+          isStaticCloud = false;
+          const data = await res.json();
+          if (data.ok) render(data);
+          return;
+        }
+      } catch (_) {}
+
+      try {
+        isStaticCloud = true;
+        const res = await fetch("./status.json?t=" + Date.now());
+        if (!res.ok) return;
+        let data = await res.json();
+        data = await applyLiveBinanceOverlay(data);
+        if (data.ok) render(data);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function forceRefresh() {
+      const icon = document.getElementById("refresh-icon");
+      icon.classList.add("animate-spin");
+      try {
+        if (!isStaticCloud) {
+          const res = await fetch("/api/refresh", { method: "POST" });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok) render(data);
+            return;
+          }
+        }
+        await loadStatus(true);
+      } finally {
+        icon.classList.remove("animate-spin");
+      }
+    }
+
+    async function togglePause() {
+      if (!currentState) return;
+      if (isStaticCloud) {
+        openModal(
+          "Modo Nuvem (GitHub Actions)",
+          "Para pausar ou retomar na nuvem, envie /pausar ou /retomar diretamente no chat do bot no Telegram.",
+          async () => {}
+        );
+        return;
+      }
+      const endpoint = currentState.paused ? "/api/resume" : "/api/pause";
+      await fetch(endpoint, { method: "POST" });
+      await loadStatus();
+    }
+
+    function openModal(title, body, onConfirm) {
+      document.getElementById("modal-title").textContent = title;
+      document.getElementById("modal-body").textContent = body;
+      const btn = document.getElementById("modal-confirm-btn");
+      btn.onclick = async () => {
+        closeModal();
+        await onConfirm();
+      };
+      document.getElementById("modal-overlay").classList.remove("hidden");
+    }
+
+    function closeModal() {
+      document.getElementById("modal-overlay").classList.add("hidden");
+    }
+
+    function confirmSell(symbol) {
+      if (isStaticCloud) {
+        openModal(
+          "Modo Nuvem (GitHub Actions)",
+          "No modo GitHub Actions, acione 'Run workflow -> sell_all' na aba Actions do seu repositório caso queira encerrar posições manualmente.",
+          async () => {}
+        );
+        return;
+      }
+      const label = symbol === "ALL" ? "TODAS as posições abertas" : symbol;
+      openModal(
+        "Encerrar Posição (Simulação)",
+        `Deseja vender ${label} a preço de mercado atual no Paper Trading?`,
+        async () => {
+          await fetch("/api/sell", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol })
+          });
+          await loadStatus();
+        }
+      );
+    }
+
+    function confirmReset() {
+      if (isStaticCloud) {
+        openModal(
+          "Modo Nuvem (GitHub Actions)",
+          "No modo GitHub Actions, acione 'Run workflow -> reset' na aba Actions do seu repositório para reiniciar a banca em US$ 300,00.",
+          async () => {}
+        );
+        return;
+      }
+      openModal(
+        "Reiniciar Simulação Paper",
+        "Tem certeza? Isso apagará o histórico de trades simulados e reiniciará a banca virtual em US$ 300,00.",
+        async () => {
+          await fetch("/api/reset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ confirm: true })
+          });
+          await loadStatus();
+        }
+      );
+    }
+
+    loadStatus();
+    setInterval(loadStatus, 30000);
+  </script>
+</body>
+</html>
