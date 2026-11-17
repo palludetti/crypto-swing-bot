@@ -1,0 +1,6 @@
+*.py
+requirements.txt
+*.bat
+data/
+.github/
+paper_state.json
